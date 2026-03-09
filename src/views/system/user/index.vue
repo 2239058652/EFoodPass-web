@@ -1,12 +1,30 @@
 <template>
+  <el-card class="page-card page-hero gradient-blue" shadow="never">
+    <div class="page-hero__title">用户管理</div>
+    <div class="page-hero__desc">集中维护账号、状态、角色分配与密码重置。保留管理系统的严谨性，同时用更轻的界面层次降低操作压力。</div>
+    <div class="page-hero__meta">
+      <div class="hero-badge">分页查询</div>
+      <div class="hero-badge">角色分配</div>
+      <div class="hero-badge">状态切换</div>
+    </div>
+  </el-card>
+
   <el-card class="page-card" shadow="never">
-    <el-form :model="queryForm" inline>
-      <el-form-item label="用户名"><el-input v-model="queryForm.username" placeholder="支持模糊查询" clearable /></el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px">
-          <el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-      </el-form-item>
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">筛选条件</div>
+        <div class="panel-desc">支持用户名模糊查询和启用状态筛选。</div>
+      </div>
+    </div>
+    <el-form :model="queryForm" inline class="filter-form">
+      <div class="toolbar">
+        <el-form-item label="用户名"><el-input v-model="queryForm.username" placeholder="支持模糊查询" clearable /></el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px">
+            <el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+      </div>
       <div class="toolbar">
         <el-button type="primary" @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
@@ -16,15 +34,25 @@
   </el-card>
 
   <el-card class="page-card" shadow="never">
-    <el-table :data="tableData" border v-loading="loading">
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">用户列表</div>
+        <div class="panel-desc">当前共 {{ total }} 条记录，用户角色以标签方式直观展示。</div>
+      </div>
+    </div>
+    <el-table :data="tableData" class="soft-table" v-loading="loading">
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column prop="username" label="用户名" min-width="140" />
       <el-table-column prop="nickname" label="昵称" min-width="140" />
       <el-table-column prop="phone" label="手机号" min-width="140" />
-      <el-table-column label="角色编码" min-width="180">
-        <template #default="{ row }"><el-tag v-for="code in row.roleCodes || []" :key="code" size="small" style="margin-right: 6px">{{ code }}</el-tag></template>
+      <el-table-column label="角色编码" min-width="220">
+        <template #default="{ row }">
+          <el-tag v-for="code in row.roleCodes || []" :key="code" size="small" class="code-pill" style="margin-right: 6px; margin-bottom: 6px;">{{ code }}</el-tag>
+        </template>
       </el-table-column>
-      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'">{{ getStatusLabel(row.status) }}</el-tag></template></el-table-column>
+      <el-table-column label="状态" width="110">
+        <template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'" class="status-pill">{{ getStatusLabel(row.status) }}</el-tag></template>
+      </el-table-column>
       <el-table-column label="操作" width="420" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row.id)">编辑</el-button>
@@ -35,12 +63,13 @@
         </template>
       </el-table-column>
     </el-table>
-    <div style="display:flex; justify-content:flex-end; margin-top: 16px">
+    <div style="display:flex; justify-content:flex-end; margin-top: 18px">
       <el-pagination background layout="total, sizes, prev, pager, next, jumper" v-model:current-page="queryForm.pageNum" v-model:page-size="queryForm.pageSize" :page-sizes="[10,20,50]" :total="total" @size-change="getList" @current-change="getList" />
     </div>
   </el-card>
 
-  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增用户' : '编辑用户'" width="520px">
+  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增用户' : '编辑用户'" width="560px">
+    <div class="dialog-note">请确保用户名唯一，状态和角色分配与后端权限体系保持一致。</div>
     <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="90px">
       <el-form-item label="用户名" prop="username" v-if="formMode === 'create'"><el-input v-model="editForm.username" /></el-form-item>
       <el-form-item label="密码" prop="password" v-if="formMode === 'create'"><el-input v-model="editForm.password" type="password" show-password /></el-form-item>
@@ -51,7 +80,8 @@
     <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitEdit">确定</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="roleVisible" title="分配角色" width="520px">
+  <el-dialog v-model="roleVisible" title="分配角色" width="560px">
+    <div class="dialog-note">角色来源于角色管理列表，提交后立即同步到后端用户角色关系。</div>
     <el-form label-width="90px">
       <el-form-item label="用户ID"><span>{{ roleForm.userId }}</span></el-form-item>
       <el-form-item label="角色选择"><el-checkbox-group v-model="roleForm.roleIds"><el-checkbox v-for="item in allRoles" :key="item.id" :value="item.id" :label="item.roleName + ' (' + item.roleCode + ')'" /></el-checkbox-group></el-form-item>
@@ -59,7 +89,8 @@
     <template #footer><el-button @click="roleVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitRoleAssign">确定</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="passwordVisible" title="重置密码" width="420px">
+  <el-dialog v-model="passwordVisible" title="重置密码" width="440px">
+    <div class="dialog-note">建议使用高强度密码，重置后让对应用户重新登录。</div>
     <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-width="90px">
       <el-form-item label="用户ID"><span>{{ passwordForm.userId }}</span></el-form-item>
       <el-form-item label="新密码" prop="newPassword"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item>

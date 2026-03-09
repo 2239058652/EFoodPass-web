@@ -1,24 +1,55 @@
 <template>
+  <el-card class="page-card page-hero gradient-blue" shadow="never">
+    <div class="page-hero__title">权限管理</div>
+    <div class="page-hero__desc">维护权限编码、权限类型、请求路径与方法，为后端接口鉴权和页面能力控制提供统一基础。</div>
+    <div class="page-hero__meta">
+      <div class="hero-badge">接口权限</div>
+      <div class="hero-badge">按钮权限</div>
+      <div class="hero-badge">状态控制</div>
+    </div>
+  </el-card>
+
   <el-card class="page-card" shadow="never">
-    <el-form :model="queryForm" inline>
-      <el-form-item label="权限编码"><el-input v-model="queryForm.permCode" placeholder="支持模糊查询" clearable /></el-form-item>
-      <el-form-item label="状态"><el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px"><el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
-      <div class="toolbar"><el-button type="primary" @click="getList">查询</el-button><el-button @click="handleReset">重置</el-button><el-button type="success" @click="openCreate">新增权限</el-button></div>
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">筛选条件</div>
+        <div class="panel-desc">支持权限编码模糊查询和状态筛选。</div>
+      </div>
+    </div>
+    <el-form :model="queryForm" inline class="filter-form">
+      <div class="toolbar">
+        <el-form-item label="权限编码"><el-input v-model="queryForm.permCode" placeholder="支持模糊查询" clearable /></el-form-item>
+        <el-form-item label="状态"><el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px"><el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
+      </div>
+      <div class="toolbar">
+        <el-button type="primary" @click="getList">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
+        <el-button type="success" @click="openCreate">新增权限</el-button>
+      </div>
     </el-form>
   </el-card>
+
   <el-card class="page-card" shadow="never">
-    <el-table :data="tableData" border v-loading="loading">
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">权限列表</div>
+        <div class="panel-desc">权限类型、请求路径与请求方法集中展示，便于核对后端鉴权规则。</div>
+      </div>
+    </div>
+    <el-table :data="tableData" class="soft-table" v-loading="loading">
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column prop="permCode" label="权限编码" min-width="210" />
       <el-table-column prop="permName" label="权限名称" min-width="180" />
       <el-table-column label="类型" width="100"><template #default="{ row }">{{ getPermissionTypeLabel(row.permType) }}</template></el-table-column>
       <el-table-column prop="path" label="请求路径" min-width="180" />
       <el-table-column prop="method" label="请求方法" width="120" />
-      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'">{{ getStatusLabel(row.status) }}</el-tag></template></el-table-column>
+      <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'" class="status-pill">{{ getStatusLabel(row.status) }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="320" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openEdit(row.id)">编辑</el-button><el-button link type="primary" @click="changeStatus(row)">{{ row.status === 1 ? '禁用' : '启用' }}</el-button><el-button link type="danger" @click="handleDelete(row.id)">删除</el-button></template></el-table-column>
     </el-table>
   </el-card>
-  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增权限' : '编辑权限'" width="520px">
+
+  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增权限' : '编辑权限'" width="560px">
+    <div class="dialog-note">权限编码建议长期稳定；请求路径和请求方法应与后端接口严格一致。</div>
     <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="90px">
       <el-form-item label="权限编码" prop="permCode" v-if="formMode === 'create'"><el-input v-model="editForm.permCode" /></el-form-item>
       <el-form-item label="权限名称" prop="permName"><el-input v-model="editForm.permName" /></el-form-item>

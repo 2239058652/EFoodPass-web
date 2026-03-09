@@ -1,21 +1,60 @@
 <template>
+  <el-card class="page-card page-hero gradient-warm" shadow="never">
+    <div class="page-hero__title">角色管理</div>
+    <div class="page-hero__desc">角色是权限汇聚的核心层。你可以在这里维护角色编码、状态，并统一分配权限集合。</div>
+    <div class="page-hero__meta">
+      <div class="hero-badge">角色编码</div>
+      <div class="hero-badge">权限分配</div>
+      <div class="hero-badge">状态管理</div>
+    </div>
+  </el-card>
+
   <el-card class="page-card" shadow="never">
-    <el-form :model="queryForm" inline>
-      <el-form-item label="角色编码"><el-input v-model="queryForm.roleCode" placeholder="支持模糊查询" clearable /></el-form-item>
-      <el-form-item label="状态"><el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px"><el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
-      <div class="toolbar"><el-button type="primary" @click="getList">查询</el-button><el-button @click="handleReset">重置</el-button><el-button v-if="hasPermission('system:role:add')" type="success" @click="openCreate">新增角色</el-button></div>
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">筛选条件</div>
+        <div class="panel-desc">支持角色编码模糊查询和状态筛选。</div>
+      </div>
+    </div>
+    <el-form :model="queryForm" inline class="filter-form">
+      <div class="toolbar">
+        <el-form-item label="角色编码"><el-input v-model="queryForm.roleCode" placeholder="支持模糊查询" clearable /></el-form-item>
+        <el-form-item label="状态"><el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px"><el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
+      </div>
+      <div class="toolbar">
+        <el-button type="primary" @click="getList">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
+        <el-button v-if="hasPermission('system:role:add')" type="success" @click="openCreate">新增角色</el-button>
+      </div>
     </el-form>
   </el-card>
+
   <el-card class="page-card" shadow="never">
-    <el-table :data="tableData" border v-loading="loading">
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">角色列表</div>
+        <div class="panel-desc">当前后端接口返回普通列表，因此这里未做分页。</div>
+      </div>
+    </div>
+    <el-table :data="tableData" class="soft-table" v-loading="loading">
       <el-table-column prop="id" label="ID" width="90" />
       <el-table-column prop="roleCode" label="角色编码" min-width="180" />
       <el-table-column prop="roleName" label="角色名称" min-width="180" />
-      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'">{{ getStatusLabel(row.status) }}</el-tag></template></el-table-column>
-      <el-table-column label="操作" width="360" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openEdit(row.id)">编辑</el-button><el-button link type="primary" @click="openAssignPermission(row.id)">分配权限</el-button><el-button link type="primary" @click="changeStatus(row)">{{ row.status === 1 ? '禁用' : '启用' }}</el-button><el-button link type="danger" @click="handleDelete(row.id)">删除</el-button></template></el-table-column>
+      <el-table-column label="权限数" width="100"><template #default="{ row }">{{ row.permissionIds?.length || 0 }}</template></el-table-column>
+      <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'" class="status-pill">{{ getStatusLabel(row.status) }}</el-tag></template></el-table-column>
+      <el-table-column label="操作" width="340" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openEdit(row.id)">编辑</el-button>
+          <el-button link type="primary" @click="openAssignPermission(row.id)">分配权限</el-button>
+          <el-button v-if="hasPermission('system:role:update')" link type="primary" @click="changeStatus(row)">{{ row.status === 1 ? '禁用' : '启用' }}</el-button>
+          <el-button v-if="hasPermission('system:role:delete')" link type="danger" @click="handleDelete(row.id)">删除</el-button>
+        </template>
+      </el-table-column>
     </el-table>
   </el-card>
-  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增角色' : '编辑角色'" width="520px">
+
+  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增角色' : '编辑角色'" width="560px">
+    <div class="dialog-note">建议角色编码使用稳定、可读的英文标识，避免频繁修改。</div>
     <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="90px">
       <el-form-item label="角色编码" prop="roleCode" v-if="formMode === 'create'"><el-input v-model="editForm.roleCode" /></el-form-item>
       <el-form-item label="角色名称" prop="roleName"><el-input v-model="editForm.roleName" /></el-form-item>
@@ -23,10 +62,12 @@
     </el-form>
     <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitEdit">确定</el-button></template>
   </el-dialog>
-  <el-dialog v-model="permissionVisible" title="分配权限" width="680px">
+
+  <el-dialog v-model="permissionVisible" title="分配权限" width="600px">
+    <div class="dialog-note">提交后会同步更新角色与权限的关联关系。</div>
     <el-form label-width="90px">
       <el-form-item label="角色ID"><span>{{ permissionForm.roleId }}</span></el-form-item>
-      <el-form-item label="权限"><el-checkbox-group v-model="permissionForm.permissionIds"><el-checkbox v-for="item in allPermissions" :key="item.id" :value="item.id" :label="item.permName + ' (' + item.permCode + ')'" /></el-checkbox-group></el-form-item>
+      <el-form-item label="权限选择"><el-checkbox-group v-model="permissionForm.permissionIds"><el-checkbox v-for="item in allPermissions" :key="item.id" :value="item.id" :label="item.permName + ' (' + item.permCode + ')'" /></el-checkbox-group></el-form-item>
     </el-form>
     <template #footer><el-button @click="permissionVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitPermissionAssign">确定</el-button></template>
   </el-dialog>

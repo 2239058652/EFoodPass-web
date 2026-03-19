@@ -1,0 +1,147 @@
+<template>
+  <el-card class="page-card page-hero gradient-blue" shadow="never">
+    <div class="page-hero__title">用户管理</div>
+    <div class="page-hero__desc">集中维护账号、状态、角色分配与密码重置。保留管理系统的严谨性，同时用更轻的界面层次降低操作压力。</div>
+    <div class="page-hero__meta">
+      <div class="hero-badge">分页查询</div>
+      <div class="hero-badge">角色分配</div>
+      <div class="hero-badge">状态切换</div>
+    </div>
+  </el-card>
+
+  <el-card class="page-card" shadow="never">
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">筛选条件</div>
+        <div class="panel-desc">支持用户名模糊查询和启用状态筛选。</div>
+      </div>
+    </div>
+    <el-form :model="queryForm" inline class="filter-form">
+      <div class="toolbar">
+        <el-form-item label="用户名"><el-input v-model="queryForm.username" placeholder="支持模糊查询" clearable /></el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryForm.status" placeholder="全部" clearable style="width: 140px">
+            <el-option v-for="item in STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+      </div>
+      <div class="toolbar">
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
+        <el-button v-if="hasPermission('system:user:add')" type="success" @click="openCreate">新增用户</el-button>
+      </div>
+    </el-form>
+  </el-card>
+
+  <el-card class="page-card" shadow="never">
+    <div class="section-head">
+      <div class="section-head-left">
+        <div class="panel-title">用户列表</div>
+        <div class="panel-desc">当前共 {{ total }} 条记录，用户角色以标签方式直观展示。</div>
+      </div>
+    </div>
+    <el-table :data="tableData" class="soft-table" v-loading="loading">
+      <el-table-column prop="id" label="ID" width="90" />
+      <el-table-column prop="username" label="用户名" min-width="140" />
+      <el-table-column prop="nickname" label="昵称" min-width="140" />
+      <el-table-column prop="phone" label="手机号" min-width="140" />
+      <el-table-column label="角色编码" min-width="220">
+        <template #default="{ row }">
+          <el-tag v-for="code in row.roleCodes || []" :key="code" size="small" class="code-pill" style="margin-right: 6px; margin-bottom: 6px;">{{ code }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="110">
+        <template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'" class="status-pill">{{ getStatusLabel(row.status) }}</el-tag></template>
+      </el-table-column>
+      <el-table-column label="操作" width="420" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openEdit(row.id)">编辑</el-button>
+          <el-button link type="primary" @click="openAssignRole(row.id)">分配角色</el-button>
+          <el-button link type="warning" @click="openResetPassword(row.id)">重置密码</el-button>
+          <el-button v-if="hasPermission('system:user:update')" link type="primary" @click="changeStatus(row)">{{ row.status === 1 ? '禁用' : '启用' }}</el-button>
+          <el-button v-if="hasPermission('system:user:delete')" link type="danger" @click="handleDelete(row.id)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <div style="display:flex; justify-content:flex-end; margin-top: 18px">
+      <el-pagination background layout="total, sizes, prev, pager, next, jumper" v-model:current-page="queryForm.pageNum" v-model:page-size="queryForm.pageSize" :page-sizes="[10,20,50]" :total="total" @size-change="getList" @current-change="getList" />
+    </div>
+  </el-card>
+
+  <el-dialog v-model="editVisible" :title="formMode === 'create' ? '新增用户' : '编辑用户'" width="560px">
+    <div class="dialog-note">请确保用户名唯一，状态和角色分配与后端权限体系保持一致。</div>
+    <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="90px">
+      <el-form-item label="用户名" prop="username" v-if="formMode === 'create'"><el-input v-model="editForm.username" /></el-form-item>
+      <el-form-item label="密码" prop="password" v-if="formMode === 'create'"><el-input v-model="editForm.password" type="password" show-password /></el-form-item>
+      <el-form-item label="昵称" prop="nickname"><el-input v-model="editForm.nickname" /></el-form-item>
+      <el-form-item label="手机号" prop="phone"><el-input v-model="editForm.phone" /></el-form-item>
+      <el-form-item label="状态" prop="status"><el-radio-group v-model="editForm.status"><el-radio :value="1">启用</el-radio><el-radio :value="0">禁用</el-radio></el-radio-group></el-form-item>
+    </el-form>
+    <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitEdit">确定</el-button></template>
+  </el-dialog>
+
+  <el-dialog v-model="roleVisible" title="分配角色" width="560px">
+    <div class="dialog-note">角色来源于角色管理列表，提交后立即同步到后端用户角色关系。</div>
+    <el-form label-width="90px">
+      <el-form-item label="用户ID"><span>{{ roleForm.userId }}</span></el-form-item>
+      <el-form-item label="角色选择"><el-checkbox-group v-model="roleForm.roleIds"><el-checkbox v-for="item in allRoles" :key="item.id" :value="item.id" :label="item.roleName + ' (' + item.roleCode + ')'" /></el-checkbox-group></el-form-item>
+    </el-form>
+    <template #footer><el-button @click="roleVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitRoleAssign">确定</el-button></template>
+  </el-dialog>
+
+  <el-dialog v-model="passwordVisible" title="重置密码" width="440px">
+    <div class="dialog-note">建议使用高强度密码，重置后让对应用户重新登录。</div>
+    <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-width="90px">
+      <el-form-item label="用户ID"><span>{{ passwordForm.userId }}</span></el-form-item>
+      <el-form-item label="新密码" prop="newPassword"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item>
+    </el-form>
+    <template #footer><el-button @click="passwordVisible = false">取消</el-button><el-button type="primary" :loading="submitLoading" @click="submitPasswordReset">确定</el-button></template>
+  </el-dialog>
+</template>
+
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { RoleItem, UserForm, UserItem, UserQuery } from '@/types'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { assignUserRole, createUser, deleteUser, getUserDetail, getUserList, resetUserPassword, updateUser, updateUserStatus } from '@/api/user'
+import { getRoleList } from '@/api/role'
+import { getStatusLabel, STATUS_OPTIONS } from '@/utils/constants'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+const loading = ref(false)
+const submitLoading = ref(false)
+const tableData = ref<UserItem[]>([])
+const total = ref(0)
+const allRoles = ref<RoleItem[]>([])
+const queryForm = reactive<UserQuery>({ username: '', status: undefined, pageNum: 1, pageSize: 10 })
+const formMode = ref('create')
+const editVisible = ref(false)
+const editFormRef = ref<FormInstance>()
+const editForm = reactive<UserForm>({ id: undefined, username: '', password: '', nickname: '', phone: '', status: 1 })
+const editRules: FormRules<UserForm> = { username: [{ required: true, message: '请输入用户名', trigger: 'blur' }], password: [{ required: true, message: '请输入密码', trigger: 'blur' }], nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }], status: [{ required: true, message: '请选择状态', trigger: 'change' }] }
+const roleVisible = ref(false)
+const roleForm = reactive<{ userId?: number; roleIds: number[] }>({ userId: undefined, roleIds: [] })
+const passwordVisible = ref(false)
+const passwordFormRef = ref<FormInstance>()
+const passwordForm = reactive<{ userId?: number; newPassword: string }>({ userId: undefined, newPassword: '' })
+const passwordRules: FormRules<{ userId?: number; newPassword: string }> = { newPassword: [{ required: true, message: '请输入新密码', trigger: 'blur' }] }
+
+const hasPermission = (code: string): boolean => authStore.hasPermission(code)
+async function loadRoles() { const res = await getRoleList({}); allRoles.value = Array.isArray(res.data) ? res.data : res.data?.records || [] }
+async function getList() { loading.value = true; try { const res = await getUserList(queryForm); tableData.value = res.data?.records || []; total.value = res.data?.total || 0 } finally { loading.value = false } }
+function handleSearch() { queryForm.pageNum = 1; getList() }
+function handleReset() { queryForm.username = ''; queryForm.status = undefined; queryForm.pageNum = 1; queryForm.pageSize = 10; getList() }
+function resetEditForm() { Object.assign(editForm, { id: undefined, username: '', password: '', nickname: '', phone: '', status: 1 }) }
+function openCreate() { formMode.value = 'create'; resetEditForm(); editVisible.value = true }
+async function openEdit(id: number): Promise<void> { formMode.value = 'edit'; resetEditForm(); const res = await getUserDetail(id); Object.assign(editForm, { id: res.data.id, nickname: res.data.nickname, phone: res.data.phone, status: res.data.status }); editVisible.value = true }
+function submitEdit(): void { editFormRef.value?.validate(async (valid: boolean) => { if (!valid) return; submitLoading.value = true; try { if (formMode.value === 'create') { await createUser({ username: editForm.username, password: editForm.password, nickname: editForm.nickname, phone: editForm.phone, status: editForm.status }); ElMessage.success('新增成功') } else { await updateUser({ id: editForm.id, nickname: editForm.nickname, phone: editForm.phone, status: editForm.status }); ElMessage.success('更新成功') } editVisible.value = false; getList() } finally { submitLoading.value = false } }) }
+async function openAssignRole(id: number): Promise<void> { await loadRoles(); const res = await getUserDetail(id); roleForm.userId = id; roleForm.roleIds = res.data.roleIds || []; roleVisible.value = true }
+async function submitRoleAssign() { submitLoading.value = true; try { await assignUserRole({ userId: roleForm.userId, roleIds: roleForm.roleIds }); ElMessage.success('分配成功'); roleVisible.value = false; getList() } finally { submitLoading.value = false } }
+function openResetPassword(id: number): void { passwordForm.userId = id; passwordForm.newPassword = ''; passwordVisible.value = true }
+function submitPasswordReset(): void { passwordFormRef.value?.validate(async (valid: boolean) => { if (!valid) return; submitLoading.value = true; try { await resetUserPassword(passwordForm); ElMessage.success('密码已重置'); passwordVisible.value = false } finally { submitLoading.value = false } }) }
+async function changeStatus(row: UserItem): Promise<void> { await updateUserStatus({ userId: row.id, status: row.status === 1 ? 0 : 1 }); ElMessage.success('状态已更新'); getList() }
+async function handleDelete(id: number): Promise<void> { await ElMessageBox.confirm('确认删除该用户？', '提示', { type: 'warning' }); await deleteUser(id); ElMessage.success('删除成功'); getList() }
+onMounted(async () => { await Promise.all([loadRoles(), getList()]) })
+</script>

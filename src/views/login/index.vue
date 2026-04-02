@@ -8,6 +8,7 @@
       <h1 class="showcase-title">更柔和的科技感，让管理系统也能看起来有温度。</h1>
       <p class="showcase-text">
         这套界面保留了后台系统需要的秩序感和效率感，同时用更轻盈的层次、柔和的色彩和更现代的卡片结构，降低长期操作带来的视觉疲劳。
+        现在又额外接入了 Spring AI 学习入口，登录后即可在前端体验后端新增的 /ai/chat。
       </p>
       <div class="showcase-grid">
         <div class="showcase-card">
@@ -21,9 +22,9 @@
           <div class="showcase-card__text">按 permissionCodes 控制页面能力</div>
         </div>
         <div class="showcase-card">
-          <div class="showcase-card__label">视觉基调</div>
-          <div class="showcase-card__value">温润轻科技</div>
-          <div class="showcase-card__text">蓝色秩序感 + 暖色亲和感</div>
+          <div class="showcase-card__label">AI 接口</div>
+          <div class="showcase-card__value">Spring AI</div>
+          <div class="showcase-card__text">对接 POST /ai/chat，返回 data.content</div>
         </div>
       </div>
     </section>
@@ -39,11 +40,13 @@
         <el-form-item label="密码" prop="password">
           <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" size="large" />
         </el-form-item>
-        <el-button class="w-100 login-button" type="primary" size="large" :loading="loading" @click="handleLogin">登录并进入系统</el-button>
+        <div class="action-stack">
+          <el-button class="w-100 login-button" type="primary" size="large" :loading="loading" @click="handleLogin">登录并进入系统</el-button>
+        </div>
       </el-form>
       <div class="tip-panel">
         <div class="tip-panel__title">开发环境提示</div>
-        <div class="tip-panel__content">默认初始化账号可尝试 admin / Admin@123</div>
+        <div class="tip-panel__content">默认初始化账号可尝试 admin / Admin@123；AI 页面当前需登录后访问。</div>
       </div>
     </el-card>
   </div>
@@ -181,11 +184,19 @@ function handleLogin(): void {
 }
 .title { font-size: 30px; font-weight: 800; margin-top: 18px; }
 .sub-title { color: #7b8aa3; margin: 10px 0 24px; line-height: 1.8; }
+.action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .login-button {
   margin-top: 6px;
   height: 48px;
   background: linear-gradient(135deg, #5b8cff, #6c7bff);
   border: none;
+}
+.trial-button {
+  height: 48px;
 }
 .tip-panel {
   margin-top: 22px;

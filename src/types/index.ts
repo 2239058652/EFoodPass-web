@@ -338,3 +338,20 @@ export interface FoodStockLogQuery {
   pageNum: number
   pageSize: number
 }
+
+export interface AiChatRequest {
+  message: string
+}
+
+export interface AiChatResponse {
+  content: string
+}
+
+export type AiChatRole = 'user' | 'assistant'
+
+export interface AiChatMessageItem {
+  id: string
+  role: AiChatRole
+  content: string
+  createdAt: number
+}

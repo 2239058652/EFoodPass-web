@@ -6,6 +6,7 @@ import type { RouteMetaExt } from '@/types'
 
 const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'Login', component: () => import('@/views/login/index.vue'), meta: { public: true, title: '登录' } },
+  { path: '/ai/chat', name: 'AiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 对话体验' } },
   {
     path: '/admin',
     component: () => import('@/layout/AppLayout.vue'),

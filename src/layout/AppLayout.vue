@@ -34,6 +34,10 @@
               </template>
               <el-menu-item v-for="item in foodMenus" :key="item.path" :index="item.path">{{ item.title }}</el-menu-item>
             </el-sub-menu>
+            <el-menu-item index="/ai/chat">
+              <el-icon><MagicStick /></el-icon>
+              <span>AI 对话</span>
+            </el-menu-item>
             <el-sub-menu index="/app/link">
               <template #title>
                 <el-icon><Tickets /></el-icon>
@@ -47,8 +51,8 @@
 
         <div class="sidebar-footer">
           <div class="footer-card">
-            <div class="footer-card__title">固定满高侧栏</div>
-            <div class="footer-card__desc">侧边栏固定占满视口，只有右侧内容区滚动，后台页面更整洁。</div>
+            <div class="footer-card__title">Spring AI 已接入前端入口</div>
+            <div class="footer-card__desc">新增 AI 对话页，直接调用后端 /ai/chat。侧边栏固定占满视口，只有右侧内容区滚动。</div>
           </div>
         </div>
       </div>
@@ -58,9 +62,10 @@
       <header class="topbar">
         <div>
           <div class="topbar-title">{{ currentTitle }}</div>
-          <div class="topbar-subtitle">严格按后端源码生成的管理端与用户端订单页</div>
+          <div class="topbar-subtitle">当前已包含后台、用户端订单页与 Spring AI 对话体验。</div>
         </div>
         <div class="header-right">
+          <el-button text bg @click="router.push('/ai/chat')">AI 对话</el-button>
           <el-button text bg @click="router.push('/app/orders')">切到用户端</el-button>
           <div class="profile-pill">
             <div class="profile-pill__avatar">{{ displayInitial }}</div>
@@ -106,7 +111,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, Bowl, House, Setting, Tickets } from '@element-plus/icons-vue'
+import { ArrowDown, Bowl, House, MagicStick, Setting, Tickets } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()

@@ -6,14 +6,14 @@
       <header class="topbar">
         <div>
           <div class="topbar-title">{{ currentTitle }}</div>
-          <div class="topbar-subtitle">当前区域使用 /app/order 系列接口；新增 AI 对话页调用 /ai/chat，需携带登录态访问。</div>
+          <div class="topbar-subtitle">用户端区域已增加 AI 助手，继续沿用当前 token 与鉴权流程。</div>
         </div>
         <div class="header-right">
           <el-button text bg @click="router.push('/admin/dashboard')">返回管理端</el-button>
           <el-menu mode="horizontal" :default-active="route.path" class="user-menu" router>
             <el-menu-item index="/app/orders">我的订单</el-menu-item>
             <el-menu-item index="/app/order/create">创建订单</el-menu-item>
-            <el-menu-item index="/ai/chat">AI 对话</el-menu-item>
+            <el-menu-item index="/app/ai/chat">AI 助手</el-menu-item>
           </el-menu>
         </div>
       </header>

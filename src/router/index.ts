@@ -6,7 +6,6 @@ import type { RouteMetaExt } from '@/types'
 
 const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'Login', component: () => import('@/views/login/index.vue'), meta: { public: true, title: '登录' } },
-  { path: '/ai/chat', name: 'AiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 对话体验' } },
   {
     path: '/admin',
     component: () => import('@/layout/AppLayout.vue'),
@@ -21,7 +20,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'food/items', name: 'FoodItem', component: () => import('@/views/food/item/index.vue'), meta: { title: '菜品管理', permission: 'food:item:list' } },
       { path: 'food/orders', name: 'FoodOrder', component: () => import('@/views/food/order/index.vue'), meta: { title: '订单管理', permission: 'food:order:list' } },
       { path: 'food/order-stat', name: 'FoodOrderStat', component: () => import('@/views/food/order-stat/index.vue'), meta: { title: '订单统计', permission: 'food:order:stat' } },
-      { path: 'food/stock-logs', name: 'FoodStockLog', component: () => import('@/views/food/stock-log/index.vue'), meta: { title: '库存日志', permission: 'food:stock-log:list' } }
+      { path: 'food/stock-logs', name: 'FoodStockLog', component: () => import('@/views/food/stock-log/index.vue'), meta: { title: '库存日志', permission: 'food:stock-log:list' } },
+      { path: 'ai/chat', name: 'AdminAiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 助手' } }
     ]
   },
   {
@@ -32,7 +32,8 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'orders', name: 'AppOrders', component: () => import('@/views/app/orders/index.vue'), meta: { title: '我的订单' } },
       { path: 'orders/:id', name: 'AppOrderDetail', component: () => import('@/views/app/orders/detail.vue'), meta: { title: '订单详情' } },
-      { path: 'order/create', name: 'AppOrderCreate', component: () => import('@/views/app/order/create.vue'), meta: { title: '创建订单' } }
+      { path: 'order/create', name: 'AppOrderCreate', component: () => import('@/views/app/order/create.vue'), meta: { title: '创建订单' } },
+      { path: 'ai/chat', name: 'AppAiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 助手' } }
     ]
   },
   { path: '/', redirect: '/admin/dashboard' }

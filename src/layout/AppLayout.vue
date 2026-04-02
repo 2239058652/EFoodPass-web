@@ -34,9 +34,9 @@
               </template>
               <el-menu-item v-for="item in foodMenus" :key="item.path" :index="item.path">{{ item.title }}</el-menu-item>
             </el-sub-menu>
-            <el-menu-item index="/ai/chat">
-              <el-icon><MagicStick /></el-icon>
-              <span>AI 对话</span>
+            <el-menu-item index="/admin/ai/chat">
+              <el-icon><ChatDotRound /></el-icon>
+              <span>AI 助手</span>
             </el-menu-item>
             <el-sub-menu index="/app/link">
               <template #title>
@@ -45,14 +45,15 @@
               </template>
               <el-menu-item index="/app/orders">我的订单</el-menu-item>
               <el-menu-item index="/app/order/create">创建订单</el-menu-item>
+              <el-menu-item index="/app/ai/chat">AI 助手</el-menu-item>
             </el-sub-menu>
           </el-menu>
         </div>
 
         <div class="sidebar-footer">
           <div class="footer-card">
-            <div class="footer-card__title">Spring AI 已接入前端入口</div>
-            <div class="footer-card__desc">新增 AI 对话页，直接调用后端 /ai/chat。侧边栏固定占满视口，只有右侧内容区滚动。</div>
+            <div class="footer-card__title">AI 会话已接入</div>
+            <div class="footer-card__desc">支持多轮对话、历史会话、重命名、历史恢复和结构化卡片展示。</div>
           </div>
         </div>
       </div>
@@ -62,10 +63,10 @@
       <header class="topbar">
         <div>
           <div class="topbar-title">{{ currentTitle }}</div>
-          <div class="topbar-subtitle">当前已包含后台、用户端订单页与 Spring AI 对话体验。</div>
+          <div class="topbar-subtitle">管理功能与 AI 助手均按后端 main 分支接口对齐。</div>
         </div>
         <div class="header-right">
-          <el-button text bg @click="router.push('/ai/chat')">AI 对话</el-button>
+          <el-button text bg @click="router.push('/admin/ai/chat')">AI 助手</el-button>
           <el-button text bg @click="router.push('/app/orders')">切到用户端</el-button>
           <div class="profile-pill">
             <div class="profile-pill__avatar">{{ displayInitial }}</div>
@@ -111,7 +112,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, Bowl, House, MagicStick, Setting, Tickets } from '@element-plus/icons-vue'
+import { ArrowDown, Bowl, ChatDotRound, House, Setting, Tickets } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()

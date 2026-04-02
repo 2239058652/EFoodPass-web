@@ -6,7 +6,7 @@ import type { ApiResponse } from '@/types'
 
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_BASE_API || '/api',
-  timeout: 15000
+  timeout: 300000, // 5分钟超时
 })
 
 service.interceptors.request.use((config: InternalAxiosRequestConfig) => {

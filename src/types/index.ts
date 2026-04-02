@@ -339,19 +339,67 @@ export interface FoodStockLogQuery {
   pageSize: number
 }
 
+
 export interface AiChatRequest {
   message: string
+  sessionId?: string
+}
+
+export interface AiDisplayField {
+  label: string
+  value: string
+}
+
+export interface AiDisplayCard {
+  title: string
+  type: string
+  summary: string
+  fields: AiDisplayField[]
+}
+
+export interface AiConversationMeta {
+  historyApplied?: boolean
+  summaryApplied?: boolean
+  recentTurnCount?: number
+  sceneReused?: boolean
 }
 
 export interface AiChatResponse {
+  sessionId: string
   content: string
+  scene?: string
+  grounded?: boolean
+  nextAction?: string
+  answerType?: string
+  card?: AiDisplayCard | null
+  conversation?: AiConversationMeta | null
 }
 
-export type AiChatRole = 'user' | 'assistant'
-
-export interface AiChatMessageItem {
+export interface AiConversationMessage {
   id: string
-  role: AiChatRole
+  role: 'user' | 'assistant' | string
   content: string
   createdAt: number
+}
+
+export interface AiConversationSessionSummary {
+  sessionId: string
+  title: string
+  scene?: string
+  preview?: string
+  updatedAt?: number
+}
+
+export interface AiConversationSessionDetail {
+  sessionId: string
+  title: string
+  scene?: string
+  preview?: string
+  updatedAt?: number
+  summary?: string
+  totalMessages?: number
+  pageNum?: number
+  pageSize?: number
+  hasMore?: boolean
+  messages: AiConversationMessage[]
 }

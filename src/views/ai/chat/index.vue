@@ -1,457 +1,484 @@
 <template>
-  <div class="ai-shell">
-    <div class="ai-glow ai-glow--one"></div>
-    <div class="ai-glow ai-glow--two"></div>
+  <div class="ai-page">
+    <el-card class="page-card page-hero gradient-warm" shadow="never">
+      <div class="page-hero__title">AI 助手</div>
+      <div class="page-hero__desc">
+        这里已经按后端最新 AI 模块对齐：支持多轮会话、历史会话列表、会话详情恢复、会话重命名、删除会话，以及结构化卡片展示。
+      </div>
+      <div class="page-hero__meta">
+        <div class="hero-badge">需要登录</div>
+        <div class="hero-badge">sessionId 多轮会话</div>
+        <div class="hero-badge">历史恢复</div>
+        <div class="hero-badge">结构化返回</div>
+      </div>
+    </el-card>
 
-    <section class="ai-content">
-      <header class="page-card ai-topbar" shadow="never">
-        <div>
-          <div class="ai-topbar__title">Spring AI 对话体验</div>
-          <div class="ai-topbar__desc">
-            当前页面直接对接后端新增的 <code>POST /ai/chat</code>。请求体只传 <code>message</code>，成功后读取 <code>data.content</code> 展示。
-            根据后端当前主分支安全配置，这个接口需要登录态访问，前端会通过现有请求拦截器自动携带 token。
+    <div class="ai-layout">
+      <aside class="session-panel page-card">
+        <div class="session-panel__head">
+          <div>
+            <div class="panel-title">会话列表</div>
+            <div class="panel-desc">默认读取最近会话，可切换、重命名和删除。</div>
           </div>
+          <el-button type="primary" @click="startNewSession">新对话</el-button>
         </div>
-        <div class="ai-topbar__actions">
-          <el-button @click="router.push('/app/orders')">去用户端</el-button>
-          <el-button type="primary" plain @click="router.push('/admin/dashboard')">返回后台</el-button>
-        </div>
-      </header>
 
-      <el-card class="page-card page-hero gradient-blue" shadow="never">
-        <div class="page-hero__title">AI 学习入口已接到前端</div>
-        <div class="page-hero__desc">
-          这里没有做多轮上下文持久化，也没有流式输出，严格对应你后端当前这版接口能力：一次输入，一次返回。
-          这样你后面如果继续在 Spring AI 中加 system prompt、上下文记忆、流式响应，前端也很好继续扩展。
-        </div>
-        <div class="page-hero__meta">
-          <button v-for="prompt in presetPrompts" :key="prompt" class="prompt-chip" type="button" @click="usePreset(prompt)">
-            {{ prompt }}
-          </button>
-        </div>
-      </el-card>
+        <div class="session-panel__body app-scrollbar">
+          <div v-if="sessionLoading" class="session-loading">
+            <el-skeleton :rows="6" animated />
+          </div>
 
-      <div class="ai-grid">
-        <el-card class="page-card chat-panel" shadow="never">
-          <template #header>
-            <div class="section-head">
-              <div class="section-head-left">
-                <div class="panel-title">对话面板</div>
-                <div class="panel-desc">Enter 发送，Shift + Enter 换行。发送时会调用后端 /ai/chat。</div>
+          <template v-else>
+            <div
+              v-for="item in sessions"
+              :key="item.sessionId"
+              class="session-item"
+              :class="{ 'session-item--active': item.sessionId === currentSessionId }"
+              @click="handleSelectSession(item.sessionId)"
+            >
+              <div class="session-item__title-row">
+                <div class="session-item__title">{{ item.title || '未命名会话' }}</div>
+                <div class="session-item__actions" @click.stop>
+                  <el-button text size="small" @click="handleRename(item)">重命名</el-button>
+                  <el-button text size="small" @click="handleDelete(item)">删除</el-button>
+                </div>
               </div>
-              <div class="toolbar">
-                <el-button :icon="RefreshRight" @click="usePreset(presetPrompts[0])">填入示例</el-button>
-                <el-button :icon="Delete" @click="resetMessages">清空会话</el-button>
+              <div class="session-item__preview">{{ item.preview || '暂无预览内容' }}</div>
+              <div class="session-item__meta">
+                <el-tag size="small" effect="plain">{{ item.scene || 'general' }}</el-tag>
+                <span>{{ formatTime(item.updatedAt) }}</span>
               </div>
             </div>
+
+            <el-empty v-if="!sessions.length" description="还没有历史会话，直接开始提问即可。" />
           </template>
+        </div>
+      </aside>
 
-          <div ref="messageListRef" class="message-list app-scrollbar">
-            <div v-for="item in messages" :key="item.id" :class="['message-row', item.role === 'user' ? 'is-user' : 'is-assistant']">
-              <div class="message-avatar">{{ item.role === 'user' ? '我' : 'AI' }}</div>
-              <div class="message-bubble">
-                <div class="message-meta">{{ item.role === 'user' ? '你' : 'AI 助手' }} · {{ formatTime(item.createdAt) }}</div>
-                <div class="message-content">{{ item.content }}</div>
+      <section class="chat-panel">
+        <el-card class="page-card chat-card" shadow="never">
+          <div class="chat-card__head">
+            <div>
+              <div class="chat-card__title">{{ currentSessionTitle }}</div>
+              <div class="chat-card__desc">
+                <template v-if="currentSessionId">
+                  当前会话 ID：<code>{{ currentSessionId }}</code>
+                </template>
+                <template v-else>
+                  当前为新会话，发送第一条消息后会自动生成 sessionId。
+                </template>
+              </div>
+            </div>
+            <div class="chat-card__actions">
+              <el-button :disabled="!currentSessionId" @click="reloadCurrentSession">刷新会话</el-button>
+              <el-button :disabled="!currentSessionId" @click="handleRenameCurrent">重命名</el-button>
+              <el-button :disabled="!currentSessionId" type="danger" plain @click="handleDeleteCurrent">删除会话</el-button>
+            </div>
+          </div>
+
+          <div class="summary-box" v-if="currentSummary">
+            <div class="summary-box__title">会话摘要</div>
+            <div class="summary-box__text">{{ currentSummary }}</div>
+          </div>
+
+          <div ref="messageScrollerRef" class="message-scroller app-scrollbar">
+            <div class="message-toolbar">
+              <el-button v-if="currentSessionId && hasMore" :loading="loadMoreLoading" @click="loadMoreHistory">加载更早消息</el-button>
+              <div class="message-toolbar__note" v-if="currentSessionId">
+                已加载 {{ messages.length }} 条消息
+                <span v-if="totalMessages"> / 共 {{ totalMessages }} 条</span>
               </div>
             </div>
 
-            <div v-if="loading" class="message-row is-assistant">
-              <div class="message-avatar">AI</div>
-              <div class="message-bubble is-pending">
-                <div class="message-meta">AI 助手 · 正在思考</div>
-                <div class="message-content">正在等待后端 Spring AI 返回结果...</div>
-              </div>
+            <div v-if="detailLoading" class="message-loading">
+              <el-skeleton :rows="8" animated />
             </div>
+
+            <template v-else>
+              <div v-if="!messages.length" class="message-empty">
+                <el-empty description="开始你的第一句提问吧，例如：当前订单整体情况怎么样？" />
+              </div>
+
+              <div
+                v-for="item in messages"
+                :key="item.id"
+                class="message-row"
+                :class="item.role === 'user' ? 'message-row--user' : 'message-row--assistant'"
+              >
+                <div class="message-bubble">
+                  <div class="message-bubble__meta">
+                    <span>{{ item.role === 'user' ? '我' : 'AI' }}</span>
+                    <span>{{ formatTime(item.createdAt) }}</span>
+                  </div>
+                  <div class="message-bubble__content">{{ item.content }}</div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <div class="composer">
             <el-input
-              v-model="draft"
+              v-model="inputValue"
               type="textarea"
-              :rows="5"
+              :rows="4"
               resize="none"
               maxlength="2000"
               show-word-limit
-              placeholder="请输入你的问题，例如：帮我设计一个家庭点餐系统的用户端功能说明"
-              @keydown="handleKeydown"
+              placeholder="请输入你的问题。回车发送，Shift + Enter 换行。"
+              @keydown="handleTextareaKeydown"
             />
-            <div class="composer-footer">
-              <div class="composer-tip">
-                当前版本建议用于 Spring AI 接口联调和学习验证，不包含上下文记忆与流式输出。
+            <div class="composer__footer">
+              <div class="composer__tips">
+                <el-tag size="small" effect="plain">自动沿用 sessionId</el-tag>
+                <el-tag size="small" effect="plain">支持历史恢复</el-tag>
+                <el-tag size="small" effect="plain">支持结构化卡片</el-tag>
               </div>
-              <el-button type="primary" :icon="Promotion" :loading="loading" @click="submitMessage()">发送消息</el-button>
+              <el-button type="primary" :loading="sending" @click="sendMessage">发送</el-button>
             </div>
           </div>
         </el-card>
 
-        <div class="side-panel">
-          <el-card class="page-card info-card" shadow="never">
-            <template #header>
-              <div class="panel-title">接口映射</div>
-            </template>
-            <div class="spec-list">
-              <div class="spec-item">
-                <div class="spec-item__label">请求地址</div>
-                <code>/ai/chat</code>
-              </div>
-              <div class="spec-item">
-                <div class="spec-item__label">请求方法</div>
-                <code>POST</code>
-              </div>
-              <div class="spec-item">
-                <div class="spec-item__label">请求体</div>
-                <code>{ message: string }</code>
-              </div>
-              <div class="spec-item">
-                <div class="spec-item__label">响应读取</div>
-                <code>res.data.content</code>
-              </div>
-            </div>
-          </el-card>
+        <el-card class="page-card meta-card" shadow="never">
+          <div class="panel-title">最近一次 AI 返回</div>
+          <div class="panel-desc">这里展示后端最新一次聊天接口返回的结构化信息。</div>
 
-          <el-card class="page-card info-card" shadow="never">
-            <template #header>
-              <div class="panel-title">后续可扩展方向</div>
-            </template>
-            <ul class="plan-list">
-              <li>把单次问答升级成多轮上下文对话。</li>
-              <li>增加流式输出，边生成边展示。</li>
-              <li>加入系统提示词与角色设定。</li>
-              <li>支持复制回复、导出会话、保存历史记录。</li>
-            </ul>
-          </el-card>
-
-          <el-card class="page-card info-card gradient-warm" shadow="never">
-            <template #header>
-              <div class="panel-title">联调提醒</div>
-            </template>
-            <div class="dialog-note ai-note">
-              如果这里发送失败，优先检查后端模型 Key、模型名、网络连通性，以及 Spring AI 配置是否已经生效。
+          <div v-if="lastResponse" class="meta-content">
+            <div class="meta-tags">
+              <el-tag effect="plain">scene: {{ lastResponse.scene || '-' }}</el-tag>
+              <el-tag effect="plain">grounded: {{ boolText(lastResponse.grounded) }}</el-tag>
+              <el-tag effect="plain">nextAction: {{ lastResponse.nextAction || '-' }}</el-tag>
+              <el-tag effect="plain">answerType: {{ lastResponse.answerType || '-' }}</el-tag>
             </div>
-          </el-card>
-        </div>
-      </div>
-    </section>
+
+            <el-descriptions :column="2" border class="meta-desc">
+              <el-descriptions-item label="historyApplied">{{ boolText(lastResponse.conversation?.historyApplied) }}</el-descriptions-item>
+              <el-descriptions-item label="summaryApplied">{{ boolText(lastResponse.conversation?.summaryApplied) }}</el-descriptions-item>
+              <el-descriptions-item label="recentTurnCount">{{ lastResponse.conversation?.recentTurnCount ?? '-' }}</el-descriptions-item>
+              <el-descriptions-item label="sceneReused">{{ boolText(lastResponse.conversation?.sceneReused) }}</el-descriptions-item>
+            </el-descriptions>
+
+            <div v-if="lastResponse.card" class="display-card">
+              <div class="display-card__title">{{ lastResponse.card.title || '结构化卡片' }}</div>
+              <div class="display-card__sub">
+                <span>type: {{ lastResponse.card.type || '-' }}</span>
+              </div>
+              <div class="display-card__summary" v-if="lastResponse.card.summary">{{ lastResponse.card.summary }}</div>
+              <el-descriptions v-if="lastResponse.card.fields?.length" :column="1" border>
+                <el-descriptions-item
+                  v-for="(field, index) in lastResponse.card.fields"
+                  :key="`${field.label}-${index}`"
+                  :label="field.label || '字段'"
+                >
+                  {{ field.value || '-' }}
+                </el-descriptions-item>
+              </el-descriptions>
+            </div>
+          </div>
+
+          <el-empty v-else description="发送消息后，这里会显示本次响应的元信息和卡片。" />
+        </el-card>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { Delete, Promotion, RefreshRight } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { aiChat } from '@/api/ai'
-import type { AiChatMessageItem, AiChatRole } from '@/types'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  clearAiSession,
+  getAiSessionDetail,
+  listAiSessions,
+  renameAiSession,
+  sendAiChat
+} from '@/api/ai'
+import type {
+  AiChatResponse,
+  AiConversationMessage,
+  AiConversationSessionDetail,
+  AiConversationSessionSummary
+} from '@/types'
 
-const router = useRouter()
-const messageListRef = ref<HTMLDivElement>()
-const loading = ref(false)
-const draft = ref('')
+const sessions = ref<AiConversationSessionSummary[]>([])
+const sessionLoading = ref(false)
+const detailLoading = ref(false)
+const loadMoreLoading = ref(false)
+const sending = ref(false)
 
-const presetPrompts = [
-  '你好，请用一句话介绍你自己',
-  '帮我解释一下 Spring AI 的作用',
-  '请为家庭点餐系统设计一个 AI 助手功能',
-  '给我一段适合前端展示的欢迎语'
-]
+const currentSessionId = ref('')
+const currentSummary = ref('')
+const totalMessages = ref(0)
+const pageNum = ref(1)
+const pageSize = 20
+const hasMore = ref(false)
 
-function createMessage(role: AiChatRole, content: string): AiChatMessageItem {
+const messages = ref<AiConversationMessage[]>([])
+const inputValue = ref('')
+const lastResponse = ref<AiChatResponse | null>(null)
+const messageScrollerRef = ref<HTMLElement>()
+
+const currentSession = computed(() => sessions.value.find((item) => item.sessionId === currentSessionId.value) || null)
+const currentSessionTitle = computed(() => currentSession.value?.title || (currentSessionId.value ? '当前会话' : '新会话'))
+
+function boolText(value?: boolean | null): string {
+  if (value === true) return 'true'
+  if (value === false) return 'false'
+  return '-'
+}
+
+function formatTime(value?: number | null): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString()
+}
+
+function buildLocalMessage(role: 'user' | 'assistant', content: string): AiConversationMessage {
   return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `local-${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     role,
     content,
     createdAt: Date.now()
   }
 }
 
-function buildWelcomeMessages(): AiChatMessageItem[] {
-  return [
-    createMessage('assistant', '你好，我已经接入你后端新增的 Spring AI 接口。当前页面会在登录后调用 /ai/chat，并把返回内容显示在这里。')
-  ]
+function scrollToBottom(): void {
+  nextTick(() => {
+    const el = messageScrollerRef.value
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  })
 }
 
-const messages = ref<AiChatMessageItem[]>(buildWelcomeMessages())
-
-function formatTime(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(timestamp)
+function resetConversationView(): void {
+  currentSessionId.value = ''
+  currentSummary.value = ''
+  totalMessages.value = 0
+  pageNum.value = 1
+  hasMore.value = false
+  messages.value = []
+  lastResponse.value = null
 }
 
-async function scrollToBottom(): Promise<void> {
-  await nextTick()
-  if (!messageListRef.value) return
-  messageListRef.value.scrollTop = messageListRef.value.scrollHeight
-}
-
-function usePreset(prompt: string): void {
-  draft.value = prompt
-}
-
-function resetMessages(): void {
-  messages.value = buildWelcomeMessages()
-  draft.value = ''
-  void scrollToBottom()
-}
-
-async function submitMessage(customMessage?: string): Promise<void> {
-  const content = (customMessage ?? draft.value).trim()
-  if (!content) {
-    ElMessage.warning('请输入问题后再发送')
-    return
-  }
-
-  if (loading.value) return
-
-  messages.value.push(createMessage('user', content))
-  draft.value = ''
-  await scrollToBottom()
-
-  loading.value = true
+async function fetchSessions(openLatest = false): Promise<void> {
+  sessionLoading.value = true
   try {
-    const res = await aiChat({ message: content })
-    const reply = res.data?.content?.trim() || 'AI 已响应，但当前没有可展示的文本内容。'
-    messages.value.push(createMessage('assistant', reply))
-  } catch {
-    messages.value.push(createMessage('assistant', '本次调用失败。请检查后端 Spring AI 模型配置、API Key、网络环境和服务日志。'))
+    const res = await listAiSessions(20)
+    sessions.value = res.data || []
+    if (openLatest && sessions.value.length) {
+      await openSession(sessions.value[0].sessionId)
+    }
   } finally {
-    loading.value = false
-    await scrollToBottom()
+    sessionLoading.value = false
   }
 }
 
-function handleKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    void submitMessage()
+async function applySessionDetail(detail: AiConversationSessionDetail, appendHistory = false): Promise<void> {
+  currentSessionId.value = detail.sessionId
+  currentSummary.value = detail.summary || ''
+  totalMessages.value = detail.totalMessages || 0
+  hasMore.value = !!detail.hasMore
+
+  if (appendHistory) {
+    messages.value = [...detail.messages, ...messages.value]
+  } else {
+    messages.value = detail.messages || []
+  }
+
+  const sessionIndex = sessions.value.findIndex((item) => item.sessionId === detail.sessionId)
+  const summary: AiConversationSessionSummary = {
+    sessionId: detail.sessionId,
+    title: detail.title,
+    scene: detail.scene,
+    preview: detail.preview,
+    updatedAt: detail.updatedAt
+  }
+  if (sessionIndex >= 0) sessions.value.splice(sessionIndex, 1, summary)
+  if (!appendHistory) scrollToBottom()
+}
+
+async function openSession(sessionId: string): Promise<void> {
+  if (!sessionId) return
+  detailLoading.value = true
+  try {
+    const res = await getAiSessionDetail(sessionId, 1, pageSize)
+    pageNum.value = 1
+    lastResponse.value = null
+    await applySessionDetail(res.data, false)
+  } finally {
+    detailLoading.value = false
   }
 }
 
-onMounted(() => {
-  void scrollToBottom()
+async function handleSelectSession(sessionId: string): Promise<void> {
+  if (!sessionId || sessionId === currentSessionId.value) return
+  await openSession(sessionId)
+}
+
+function startNewSession(): void {
+  resetConversationView()
+  inputValue.value = ''
+}
+
+async function reloadCurrentSession(): Promise<void> {
+  if (!currentSessionId.value) return
+  await openSession(currentSessionId.value)
+}
+
+async function loadMoreHistory(): Promise<void> {
+  if (!currentSessionId.value || !hasMore.value || loadMoreLoading.value) return
+  loadMoreLoading.value = true
+  try {
+    const nextPage = pageNum.value + 1
+    const res = await getAiSessionDetail(currentSessionId.value, nextPage, pageSize)
+    pageNum.value = nextPage
+    await applySessionDetail(res.data, true)
+  } finally {
+    loadMoreLoading.value = false
+  }
+}
+
+async function sendMessage(): Promise<void> {
+  const message = inputValue.value.trim()
+  if (!message || sending.value) return
+
+  const localUserMessage = buildLocalMessage('user', message)
+  messages.value.push(localUserMessage)
+  inputValue.value = ''
+  scrollToBottom()
+
+  sending.value = true
+  try {
+    const res = await sendAiChat({
+      message,
+      sessionId: currentSessionId.value || undefined
+    })
+
+    const data = res.data
+    if (data.sessionId) currentSessionId.value = data.sessionId
+    messages.value.push(buildLocalMessage('assistant', data.content || ''))
+    lastResponse.value = data
+
+    await fetchSessions(false)
+    totalMessages.value = messages.value.length
+    scrollToBottom()
+  } catch {
+    messages.value.push(buildLocalMessage('assistant', '请求失败，请稍后重试。'))
+    scrollToBottom()
+  } finally {
+    sending.value = false
+  }
+}
+
+async function handleRename(item: AiConversationSessionSummary): Promise<void> {
+  try {
+    const result = await ElMessageBox.prompt('请输入新的会话标题', '重命名会话', {
+      inputValue: item.title || '',
+      inputPlaceholder: '请输入标题',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    })
+    const title = (result.value || '').trim()
+    if (!title) {
+      ElMessage.warning('标题不能为空')
+      return
+    }
+    await renameAiSession(item.sessionId, title)
+    ElMessage.success('重命名成功')
+    await fetchSessions(false)
+    if (item.sessionId === currentSessionId.value) {
+      await reloadCurrentSession()
+    }
+  } catch {
+    // ignore cancel
+  }
+}
+
+async function handleRenameCurrent(): Promise<void> {
+  if (!currentSession.value) return
+  await handleRename(currentSession.value)
+}
+
+async function handleDelete(item: AiConversationSessionSummary): Promise<void> {
+  try {
+    await ElMessageBox.confirm(`确认删除会话“${item.title || item.sessionId}”吗？`, '删除会话', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+    await clearAiSession(item.sessionId)
+    ElMessage.success('会话已删除')
+    if (item.sessionId === currentSessionId.value) resetConversationView()
+    await fetchSessions(false)
+  } catch {
+    // ignore cancel
+  }
+}
+
+async function handleDeleteCurrent(): Promise<void> {
+  if (!currentSession.value) return
+  await handleDelete(currentSession.value)
+}
+
+function handleTextareaKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter') return
+  if (event.shiftKey) return
+  event.preventDefault()
+  void sendMessage()
+}
+
+onMounted(async () => {
+  await fetchSessions(true)
 })
 </script>
 
 <style scoped>
-.ai-shell {
-  position: relative;
-  min-height: 100vh;
-  padding: 20px;
-  overflow: hidden;
-}
-.ai-glow {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(28px);
-  pointer-events: none;
-  z-index: 0;
-}
-.ai-glow--one {
-  width: 340px;
-  height: 340px;
-  left: -90px;
-  bottom: -80px;
-  background: rgba(105, 213, 177, 0.2);
-}
-.ai-glow--two {
-  width: 340px;
-  height: 340px;
-  right: -100px;
-  top: 6%;
-  background: rgba(91, 140, 255, 0.18);
-}
-.ai-content {
-  position: relative;
-  z-index: 1;
-  min-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.ai-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  padding: 22px 24px;
-}
-.ai-topbar__title {
-  font-size: 28px;
-  font-weight: 800;
-}
-.ai-topbar__desc {
-  margin-top: 10px;
-  max-width: 860px;
-  line-height: 1.8;
-  color: var(--text-secondary);
-}
-.ai-topbar__actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.ai-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.8fr);
-  gap: 18px;
-  min-height: 0;
-  flex: 1;
-}
-.chat-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-:deep(.chat-panel .el-card__body) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-.message-list {
-  min-height: 420px;
-  max-height: calc(100vh - 420px);
-  overflow: auto;
-  padding-right: 4px;
-}
-.message-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-.message-row.is-user {
-  flex-direction: row-reverse;
-}
-.message-avatar {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  color: white;
-  font-weight: 800;
-  background: linear-gradient(135deg, #5b8cff, #69d5b1);
-  box-shadow: 0 10px 24px rgba(91, 140, 255, 0.18);
-}
-.is-user .message-avatar {
-  background: linear-gradient(135deg, #ffb56b, #ff8e6b);
-}
-.message-bubble {
-  flex: 1;
-  min-width: 0;
-  padding: 16px 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  box-shadow: var(--shadow-soft);
-}
-.is-user .message-bubble {
-  background: linear-gradient(135deg, rgba(91,140,255,0.12), rgba(255,255,255,0.88));
-}
-.message-bubble.is-pending {
-  background: linear-gradient(135deg, rgba(255,181,107,0.12), rgba(255,255,255,0.88));
-}
-.message-meta {
-  font-size: 12px;
-  color: #7b8aa3;
-}
-.message-content {
-  margin-top: 10px;
-  line-height: 1.85;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.composer {
-  margin-top: 12px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
-}
-.composer-footer {
-  margin-top: 12px;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-.composer-tip {
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.7;
-}
-.side-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.info-card {
-  height: fit-content;
-}
-.spec-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.spec-item {
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.7);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-}
-.spec-item__label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-.plan-list {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-secondary);
-  line-height: 1.9;
-}
-.ai-note {
-  margin: 0;
-}
-.prompt-chip {
-  border: none;
-  cursor: pointer;
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.58);
-  color: #35507a;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid rgba(255,255,255,0.5);
-}
-.prompt-chip:hover {
-  transform: translateY(-1px);
-}
-@media (max-width: 1100px) {
-  .ai-grid {
-    grid-template-columns: 1fr;
-  }
-  .message-list {
-    max-height: none;
-    height: 480px;
-  }
-}
-@media (max-width: 768px) {
-  .ai-shell {
-    padding: 12px;
-  }
-  .ai-topbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .ai-topbar__actions,
-  .composer-footer {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .ai-topbar__title {
-    font-size: 24px;
-  }
-}
+.ai-page { display: flex; flex-direction: column; gap: 18px; }
+.ai-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; min-height: calc(100vh - 250px); }
+.session-panel { display: flex; flex-direction: column; min-height: 680px; padding: 18px; }
+.session-panel__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.session-panel__body { min-height: 0; flex: 1; overflow: auto; padding-right: 4px; }
+.session-item { padding: 14px; border-radius: 18px; border: 1px solid rgba(148,163,184,0.16); background: rgba(255,255,255,0.72); cursor: pointer; transition: all .2s ease; }
+.session-item + .session-item { margin-top: 12px; }
+.session-item:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(148,163,184,0.12); }
+.session-item--active { border-color: rgba(91,140,255,0.28); background: linear-gradient(135deg, rgba(91,140,255,0.12), rgba(105,213,177,0.08), rgba(255,255,255,0.9)); }
+.session-item__title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.session-item__title { font-size: 15px; font-weight: 700; line-height: 1.5; }
+.session-item__actions { flex: 0 0 auto; display: flex; gap: 4px; }
+.session-item__preview { margin-top: 10px; color: var(--text-secondary); font-size: 13px; line-height: 1.7; word-break: break-word; }
+.session-item__meta { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #7d8ca5; font-size: 12px; }
+.chat-panel { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.chat-card { display: flex; flex-direction: column; min-height: 680px; }
+:deep(.chat-card .el-card__body) { display: flex; flex-direction: column; min-height: 680px; }
+.chat-card__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.chat-card__title { font-size: 20px; font-weight: 800; }
+.chat-card__desc { margin-top: 6px; color: var(--text-secondary); line-height: 1.7; word-break: break-all; }
+.chat-card__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.summary-box { margin-top: 16px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(135deg, rgba(91,140,255,0.08), rgba(105,213,177,0.08)); }
+.summary-box__title { font-size: 13px; font-weight: 700; color: #4f6280; }
+.summary-box__text { margin-top: 8px; line-height: 1.8; color: var(--text-main); white-space: pre-wrap; }
+.message-scroller { margin-top: 18px; flex: 1; min-height: 320px; max-height: 560px; overflow: auto; padding: 4px 6px 4px 2px; }
+.message-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.message-toolbar__note { color: var(--text-secondary); font-size: 12px; }
+.message-empty { min-height: 260px; display: flex; align-items: center; justify-content: center; }
+.message-row { display: flex; margin-bottom: 14px; }
+.message-row--user { justify-content: flex-end; }
+.message-row--assistant { justify-content: flex-start; }
+.message-bubble { max-width: min(760px, 86%); padding: 14px 16px; border-radius: 18px; box-shadow: var(--shadow-soft); white-space: pre-wrap; word-break: break-word; line-height: 1.8; }
+.message-row--user .message-bubble { background: linear-gradient(135deg, #5b8cff, #6f83ff); color: #fff; border-bottom-right-radius: 8px; }
+.message-row--assistant .message-bubble { background: rgba(255,255,255,0.88); border: 1px solid rgba(148,163,184,0.12); border-bottom-left-radius: 8px; }
+.message-bubble__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; opacity: 0.82; margin-bottom: 8px; }
+.message-bubble__content { font-size: 14px; }
+.composer { margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(148,163,184,0.12); }
+.composer__footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.composer__tips { display: flex; flex-wrap: wrap; gap: 8px; }
+.meta-content { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+.meta-tags { display: flex; flex-wrap: wrap; gap: 10px; }
+.meta-desc { margin-top: 4px; }
+.display-card { padding: 16px; border-radius: 20px; background: rgba(255,255,255,0.76); border: 1px solid rgba(148,163,184,0.12); }
+.display-card__title { font-size: 18px; font-weight: 800; }
+.display-card__sub { margin-top: 6px; color: var(--text-secondary); font-size: 13px; }
+.display-card__summary { margin-top: 10px; line-height: 1.8; color: var(--text-main); white-space: pre-wrap; }
+.session-loading, .message-loading { padding: 8px 4px; }
+@media (max-width: 1200px) { .ai-layout { grid-template-columns: 1fr; } .session-panel { min-height: 280px; } }
+@media (max-width: 768px) { .chat-card__head, .composer__footer, .message-toolbar { flex-direction: column; align-items: flex-start; } .message-bubble { max-width: 100%; } }
 </style>

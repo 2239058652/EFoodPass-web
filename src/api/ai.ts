@@ -1,11 +1,47 @@
 import request from '@/utils/request'
-import type { AiChatRequest, AiChatResponse, ApiResponse } from '@/types'
+import type {
+  ApiResponse,
+  AiChatRequest,
+  AiChatResponse,
+  AiConversationSessionDetail,
+  AiConversationSessionSummary
+} from '@/types'
 
-export function aiChat(data: AiChatRequest) {
+export function sendAiChat(data: AiChatRequest) {
   return request<ApiResponse<AiChatResponse>>({
     url: '/ai/chat',
     method: 'post',
     data,
-    timeout: 300000
+  })
+}
+
+export function listAiSessions(limit = 10) {
+  return request<ApiResponse<AiConversationSessionSummary[]>>({
+    url: '/ai/chat/sessions',
+    method: 'get',
+    params: { limit }
+  })
+}
+
+export function getAiSessionDetail(sessionId: string, pageNum = 1, pageSize = 20) {
+  return request<ApiResponse<AiConversationSessionDetail>>({
+    url: `/ai/chat/session/${encodeURIComponent(sessionId)}`,
+    method: 'get',
+    params: { pageNum, pageSize }
+  })
+}
+
+export function renameAiSession(sessionId: string, title: string) {
+  return request<ApiResponse<void>>({
+    url: `/ai/chat/session/${encodeURIComponent(sessionId)}/title`,
+    method: 'put',
+    data: { title }
+  })
+}
+
+export function clearAiSession(sessionId: string) {
+  return request<ApiResponse<void>>({
+    url: `/ai/chat/session/${encodeURIComponent(sessionId)}`,
+    method: 'delete'
   })
 }

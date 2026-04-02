@@ -3,13 +3,14 @@
     <el-card class="page-card page-hero gradient-warm" shadow="never">
       <div class="page-hero__title">AI 助手</div>
       <div class="page-hero__desc">
-        这里已经按后端最新 AI 模块对齐：支持多轮会话、历史会话列表、会话详情恢复、会话重命名、删除会话，以及结构化卡片展示。
+        这里已按后端当前 main 分支的 AI 模块对齐：支持标准问答、流式问答、多轮会话、历史恢复、重命名、删除会话，以及 usage / retrieval / 结构化卡片信息展示。
       </div>
       <div class="page-hero__meta">
         <div class="hero-badge">需要登录</div>
+        <div class="hero-badge">标准 + 流式</div>
         <div class="hero-badge">sessionId 多轮会话</div>
         <div class="hero-badge">历史恢复</div>
-        <div class="hero-badge">结构化返回</div>
+        <div class="hero-badge">RAG / usage / card</div>
       </div>
     </el-card>
 
@@ -20,7 +21,7 @@
             <div class="panel-title">会话列表</div>
             <div class="panel-desc">默认读取最近会话，可切换、重命名和删除。</div>
           </div>
-          <el-button type="primary" @click="startNewSession">新对话</el-button>
+          <el-button type="primary" :disabled="streaming" @click="startNewSession">新对话</el-button>
         </div>
 
         <div class="session-panel__body app-scrollbar">
@@ -70,9 +71,9 @@
               </div>
             </div>
             <div class="chat-card__actions">
-              <el-button :disabled="!currentSessionId" @click="reloadCurrentSession">刷新会话</el-button>
-              <el-button :disabled="!currentSessionId" @click="handleRenameCurrent">重命名</el-button>
-              <el-button :disabled="!currentSessionId" type="danger" plain @click="handleDeleteCurrent">删除会话</el-button>
+              <el-button :disabled="!currentSessionId || streaming" @click="reloadCurrentSession">刷新会话</el-button>
+              <el-button :disabled="!currentSessionId || streaming" @click="handleRenameCurrent">重命名</el-button>
+              <el-button :disabled="!currentSessionId || streaming" type="danger" plain @click="handleDeleteCurrent">删除会话</el-button>
             </div>
           </div>
 
@@ -83,7 +84,7 @@
 
           <div ref="messageScrollerRef" class="message-scroller app-scrollbar">
             <div class="message-toolbar">
-              <el-button v-if="currentSessionId && hasMore" :loading="loadMoreLoading" @click="loadMoreHistory">加载更早消息</el-button>
+              <el-button v-if="currentSessionId && hasMore" :loading="loadMoreLoading" :disabled="streaming" @click="loadMoreHistory">加载更早消息</el-button>
               <div class="message-toolbar__note" v-if="currentSessionId">
                 已加载 {{ messages.length }} 条消息
                 <span v-if="totalMessages"> / 共 {{ totalMessages }} 条</span>
@@ -117,6 +118,21 @@
           </div>
 
           <div class="composer">
+            <div class="composer__mode-bar">
+              <el-radio-group v-model="responseMode" size="small" :disabled="sending || streaming">
+                <el-radio-button label="standard">标准回复</el-radio-button>
+                <el-radio-button label="stream">流式回复</el-radio-button>
+              </el-radio-group>
+              <div class="composer__mode-note">
+                <template v-if="responseMode === 'standard'">
+                  标准模式会返回结构化 card、usage、retrieval、conversation 元信息。
+                </template>
+                <template v-else>
+                  流式模式走 <code>/ai/chat/stream</code>，实时输出正文，但不会返回结构化元信息。
+                </template>
+              </div>
+            </div>
+
             <el-input
               v-model="inputValue"
               type="textarea"
@@ -124,6 +140,7 @@
               resize="none"
               maxlength="2000"
               show-word-limit
+              :disabled="sending || streaming"
               placeholder="请输入你的问题。回车发送，Shift + Enter 换行。"
               @keydown="handleTextareaKeydown"
             />
@@ -131,16 +148,21 @@
               <div class="composer__tips">
                 <el-tag size="small" effect="plain">自动沿用 sessionId</el-tag>
                 <el-tag size="small" effect="plain">支持历史恢复</el-tag>
-                <el-tag size="small" effect="plain">支持结构化卡片</el-tag>
+                <el-tag size="small" effect="plain">支持流式输出</el-tag>
               </div>
-              <el-button type="primary" :loading="sending" @click="sendMessage">发送</el-button>
+              <div class="composer__action-group">
+                <el-button v-if="streaming" type="danger" plain @click="stopStreaming">停止输出</el-button>
+                <el-button type="primary" :loading="sending || streaming" @click="sendMessage">
+                  {{ responseMode === 'stream' ? '开始流式输出' : '发送' }}
+                </el-button>
+              </div>
             </div>
           </div>
         </el-card>
 
         <el-card class="page-card meta-card" shadow="never">
           <div class="panel-title">最近一次 AI 返回</div>
-          <div class="panel-desc">这里展示后端最新一次聊天接口返回的结构化信息。</div>
+          <div class="panel-desc">这里展示最近一次调用对应的结构化信息，便于和后端当前 AI 输出对照调试。</div>
 
           <div v-if="lastResponse" class="meta-content">
             <div class="meta-tags">
@@ -148,6 +170,7 @@
               <el-tag effect="plain">grounded: {{ boolText(lastResponse.grounded) }}</el-tag>
               <el-tag effect="plain">nextAction: {{ lastResponse.nextAction || '-' }}</el-tag>
               <el-tag effect="plain">answerType: {{ lastResponse.answerType || '-' }}</el-tag>
+              <el-tag effect="plain">toolStatus: {{ lastResponse.toolStatus || '-' }}</el-tag>
             </div>
 
             <el-descriptions :column="2" border class="meta-desc">
@@ -156,6 +179,40 @@
               <el-descriptions-item label="recentTurnCount">{{ lastResponse.conversation?.recentTurnCount ?? '-' }}</el-descriptions-item>
               <el-descriptions-item label="sceneReused">{{ boolText(lastResponse.conversation?.sceneReused) }}</el-descriptions-item>
             </el-descriptions>
+
+            <div v-if="lastResponse.usage" class="display-card">
+              <div class="display-card__title">模型调用信息</div>
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="responseId">{{ lastResponse.usage.responseId || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="model">{{ lastResponse.usage.model || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="promptTokens">{{ lastResponse.usage.promptTokens ?? '-' }}</el-descriptions-item>
+                <el-descriptions-item label="completionTokens">{{ lastResponse.usage.completionTokens ?? '-' }}</el-descriptions-item>
+                <el-descriptions-item label="totalTokens">{{ lastResponse.usage.totalTokens ?? '-' }}</el-descriptions-item>
+              </el-descriptions>
+            </div>
+
+            <div v-if="lastResponse.retrieval" class="display-card">
+              <div class="display-card__title">检索信息</div>
+              <div class="display-card__summary" v-if="lastResponse.retrieval.retrievalApplied">
+                已启用知识检索。
+              </div>
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="retrievalApplied">{{ boolText(lastResponse.retrieval.retrievalApplied) }}</el-descriptions-item>
+                <el-descriptions-item label="knowledgeBase">{{ lastResponse.retrieval.knowledgeBase || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="filterExpression">{{ lastResponse.retrieval.filterExpression || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="topK">{{ lastResponse.retrieval.topK ?? '-' }}</el-descriptions-item>
+                <el-descriptions-item label="similarityThreshold">{{ lastResponse.retrieval.similarityThreshold ?? '-' }}</el-descriptions-item>
+                <el-descriptions-item label="retrievedCount">{{ lastResponse.retrieval.retrievedCount ?? 0 }}</el-descriptions-item>
+              </el-descriptions>
+
+              <div v-if="lastResponse.retrieval.documents?.length" class="retrieval-list">
+                <div v-for="doc in lastResponse.retrieval.documents" :key="doc.id || doc.title" class="retrieval-item">
+                  <div class="retrieval-item__title">{{ doc.title || '未命名文档' }}</div>
+                  <div class="retrieval-item__score">score: {{ doc.score ?? '-' }}</div>
+                  <div class="retrieval-item__snippet">{{ doc.snippet || '-' }}</div>
+                </div>
+              </div>
+            </div>
 
             <div v-if="lastResponse.card" class="display-card">
               <div class="display-card__title">{{ lastResponse.card.title || '结构化卡片' }}</div>
@@ -175,6 +232,19 @@
             </div>
           </div>
 
+          <div v-else-if="lastStreamInfo" class="meta-content">
+            <div class="meta-tags">
+              <el-tag effect="plain">sessionId: {{ lastStreamInfo.sessionId || '-' }}</el-tag>
+              <el-tag effect="plain">scene: {{ lastStreamInfo.scene || '-' }}</el-tag>
+              <el-tag effect="plain">done: {{ boolText(lastStreamInfo.done) }}</el-tag>
+              <el-tag effect="plain">interrupted: {{ boolText(lastStreamInfo.interrupted) }}</el-tag>
+            </div>
+            <div class="dialog-note">
+              本次为流式调用，后端只返回 <code>sessionId / scene / content / done</code> 分块数据；
+              <code>toolStatus / usage / retrieval / card</code> 这些结构化元信息仅在标准回复模式下可见。
+            </div>
+          </div>
+
           <el-empty v-else description="发送消息后，这里会显示本次响应的元信息和卡片。" />
         </el-card>
       </section>
@@ -190,7 +260,8 @@ import {
   getAiSessionDetail,
   listAiSessions,
   renameAiSession,
-  sendAiChat
+  sendAiChat,
+  streamAiChat
 } from '@/api/ai'
 import type {
   AiChatResponse,
@@ -199,42 +270,54 @@ import type {
   AiConversationSessionSummary
 } from '@/types'
 
+interface AiLastStreamInfo {
+  sessionId?: string
+  scene?: string
+  done: boolean
+  interrupted: boolean
+}
+
 const sessions = ref<AiConversationSessionSummary[]>([])
 const sessionLoading = ref(false)
 const detailLoading = ref(false)
 const loadMoreLoading = ref(false)
 const sending = ref(false)
+const streaming = ref(false)
 
 const currentSessionId = ref('')
 const currentSummary = ref('')
 const totalMessages = ref(0)
 const pageNum = ref(1)
-const pageSize = 20
 const hasMore = ref(false)
+const pageSize = 20
 
-const messages = ref<AiConversationMessage[]>([])
 const inputValue = ref('')
+const responseMode = ref<'standard' | 'stream'>('standard')
+const messages = ref<AiConversationMessage[]>([])
 const lastResponse = ref<AiChatResponse | null>(null)
-const messageScrollerRef = ref<HTMLElement>()
+const lastStreamInfo = ref<AiLastStreamInfo | null>(null)
+const messageScrollerRef = ref<HTMLDivElement>()
+const streamAbortController = ref<AbortController | null>(null)
 
 const currentSession = computed(() => sessions.value.find((item) => item.sessionId === currentSessionId.value) || null)
-const currentSessionTitle = computed(() => currentSession.value?.title || (currentSessionId.value ? '当前会话' : '新会话'))
+const currentSessionTitle = computed(() => currentSession.value?.title || (currentSessionId.value ? '当前会话' : '新对话'))
 
-function boolText(value?: boolean | null): string {
+function formatTime(timestamp?: number): string {
+  if (!timestamp) return '-'
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return '-'
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function boolText(value?: boolean): string {
   if (value === true) return 'true'
   if (value === false) return 'false'
   return '-'
 }
 
-function formatTime(value?: number | null): string {
-  if (!value) return '-'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString()
-}
-
 function buildLocalMessage(role: 'user' | 'assistant', content: string): AiConversationMessage {
   return {
-    id: `local-${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role,
     content,
     createdAt: Date.now()
@@ -257,6 +340,16 @@ function resetConversationView(): void {
   hasMore.value = false
   messages.value = []
   lastResponse.value = null
+  lastStreamInfo.value = null
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  return '请求失败，请稍后重试'
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'name' in error && (error as { name?: string }).name === 'AbortError'
 }
 
 async function fetchSessions(openLatest = false): Promise<void> {
@@ -279,7 +372,7 @@ async function applySessionDetail(detail: AiConversationSessionDetail, appendHis
   hasMore.value = !!detail.hasMore
 
   if (appendHistory) {
-    messages.value = [...detail.messages, ...messages.value]
+    messages.value = [...(detail.messages || []), ...messages.value]
   } else {
     messages.value = detail.messages || []
   }
@@ -292,7 +385,9 @@ async function applySessionDetail(detail: AiConversationSessionDetail, appendHis
     preview: detail.preview,
     updatedAt: detail.updatedAt
   }
-  if (sessionIndex >= 0) sessions.value.splice(sessionIndex, 1, summary)
+  if (sessionIndex >= 0) {
+    sessions.value.splice(sessionIndex, 1, summary)
+  }
   if (!appendHistory) scrollToBottom()
 }
 
@@ -303,6 +398,7 @@ async function openSession(sessionId: string): Promise<void> {
     const res = await getAiSessionDetail(sessionId, 1, pageSize)
     pageNum.value = 1
     lastResponse.value = null
+    lastStreamInfo.value = null
     await applySessionDetail(res.data, false)
   } finally {
     detailLoading.value = false
@@ -310,11 +406,12 @@ async function openSession(sessionId: string): Promise<void> {
 }
 
 async function handleSelectSession(sessionId: string): Promise<void> {
-  if (!sessionId || sessionId === currentSessionId.value) return
+  if (!sessionId || sessionId === currentSessionId.value || streaming.value) return
   await openSession(sessionId)
 }
 
 function startNewSession(): void {
+  if (streaming.value) return
   resetConversationView()
   inputValue.value = ''
 }
@@ -325,7 +422,7 @@ async function reloadCurrentSession(): Promise<void> {
 }
 
 async function loadMoreHistory(): Promise<void> {
-  if (!currentSessionId.value || !hasMore.value || loadMoreLoading.value) return
+  if (!currentSessionId.value || !hasMore.value || loadMoreLoading.value || streaming.value) return
   loadMoreLoading.value = true
   try {
     const nextPage = pageNum.value + 1
@@ -337,10 +434,7 @@ async function loadMoreHistory(): Promise<void> {
   }
 }
 
-async function sendMessage(): Promise<void> {
-  const message = inputValue.value.trim()
-  if (!message || sending.value) return
-
+async function sendStandardMessage(message: string): Promise<void> {
   const localUserMessage = buildLocalMessage('user', message)
   messages.value.push(localUserMessage)
   inputValue.value = ''
@@ -357,16 +451,105 @@ async function sendMessage(): Promise<void> {
     if (data.sessionId) currentSessionId.value = data.sessionId
     messages.value.push(buildLocalMessage('assistant', data.content || ''))
     lastResponse.value = data
+    lastStreamInfo.value = null
 
     await fetchSessions(false)
     totalMessages.value = messages.value.length
     scrollToBottom()
-  } catch {
+  } catch (error) {
     messages.value.push(buildLocalMessage('assistant', '请求失败，请稍后重试。'))
+    ElMessage.error(getErrorMessage(error))
     scrollToBottom()
   } finally {
     sending.value = false
   }
+}
+
+async function sendStreamMessage(message: string): Promise<void> {
+  const localUserMessage = buildLocalMessage('user', message)
+  const localAssistantMessage = buildLocalMessage('assistant', '')
+  messages.value.push(localUserMessage)
+  messages.value.push(localAssistantMessage)
+  inputValue.value = ''
+  scrollToBottom()
+
+  const controller = new AbortController()
+  streamAbortController.value = controller
+  streaming.value = true
+  lastResponse.value = null
+  lastStreamInfo.value = {
+    sessionId: currentSessionId.value || '',
+    scene: '',
+    done: false,
+    interrupted: false
+  }
+
+  try {
+    await streamAiChat(
+      {
+        message,
+        sessionId: currentSessionId.value || undefined
+      },
+      {
+        signal: controller.signal,
+        onChunk: (chunk) => {
+          if (chunk.sessionId) currentSessionId.value = chunk.sessionId
+          if (chunk.content) {
+            localAssistantMessage.content += chunk.content
+          }
+          lastStreamInfo.value = {
+            sessionId: chunk.sessionId || currentSessionId.value || '',
+            scene: chunk.scene || lastStreamInfo.value?.scene || '',
+            done: !!chunk.done,
+            interrupted: false
+          }
+          totalMessages.value = messages.value.length
+          scrollToBottom()
+        }
+      }
+    )
+
+    await fetchSessions(false)
+  } catch (error) {
+    if (isAbortError(error)) {
+      if (!localAssistantMessage.content) {
+        localAssistantMessage.content = '本次流式输出已停止。'
+      }
+      lastStreamInfo.value = {
+        sessionId: currentSessionId.value || '',
+        scene: lastStreamInfo.value?.scene || '',
+        done: false,
+        interrupted: true
+      }
+      ElMessage.info('已停止本次流式输出')
+    } else {
+      if (!localAssistantMessage.content) {
+        localAssistantMessage.content = '请求失败，请稍后重试。'
+      }
+      ElMessage.error(getErrorMessage(error))
+    }
+    scrollToBottom()
+  } finally {
+    streaming.value = false
+    streamAbortController.value = null
+    totalMessages.value = messages.value.length
+  }
+}
+
+async function sendMessage(): Promise<void> {
+  const message = inputValue.value.trim()
+  if (!message || sending.value || streaming.value) return
+
+  if (responseMode.value === 'stream') {
+    await sendStreamMessage(message)
+    return
+  }
+
+  await sendStandardMessage(message)
+}
+
+function stopStreaming(): void {
+  streamAbortController.value?.abort()
 }
 
 async function handleRename(item: AiConversationSessionSummary): Promise<void> {
@@ -469,8 +652,11 @@ onMounted(async () => {
 .message-bubble__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; opacity: 0.82; margin-bottom: 8px; }
 .message-bubble__content { font-size: 14px; }
 .composer { margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(148,163,184,0.12); }
+.composer__mode-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.composer__mode-note { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
 .composer__footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .composer__tips { display: flex; flex-wrap: wrap; gap: 8px; }
+.composer__action-group { display: flex; gap: 10px; }
 .meta-content { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
 .meta-tags { display: flex; flex-wrap: wrap; gap: 10px; }
 .meta-desc { margin-top: 4px; }
@@ -478,7 +664,21 @@ onMounted(async () => {
 .display-card__title { font-size: 18px; font-weight: 800; }
 .display-card__sub { margin-top: 6px; color: var(--text-secondary); font-size: 13px; }
 .display-card__summary { margin-top: 10px; line-height: 1.8; color: var(--text-main); white-space: pre-wrap; }
+.retrieval-list { margin-top: 14px; display: grid; gap: 12px; }
+.retrieval-item { padding: 14px; border-radius: 16px; background: rgba(246,249,255,0.82); border: 1px solid rgba(148,163,184,0.12); }
+.retrieval-item__title { font-weight: 700; }
+.retrieval-item__score { margin-top: 6px; color: var(--text-secondary); font-size: 12px; }
+.retrieval-item__snippet { margin-top: 8px; color: var(--text-main); line-height: 1.7; white-space: pre-wrap; }
 .session-loading, .message-loading { padding: 8px 4px; }
 @media (max-width: 1200px) { .ai-layout { grid-template-columns: 1fr; } .session-panel { min-height: 280px; } }
-@media (max-width: 768px) { .chat-card__head, .composer__footer, .message-toolbar { flex-direction: column; align-items: flex-start; } .message-bubble { max-width: 100%; } }
+@media (max-width: 768px) {
+  .chat-card__head,
+  .composer__footer,
+  .message-toolbar,
+  .composer__mode-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .message-bubble { max-width: 100%; }
+}
 </style>

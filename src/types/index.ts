@@ -351,10 +351,10 @@ export interface AiDisplayField {
 }
 
 export interface AiDisplayCard {
-  title: string
-  type: string
-  summary: string
-  fields: AiDisplayField[]
+  title?: string
+  type?: string
+  summary?: string
+  fields?: AiDisplayField[]
 }
 
 export interface AiConversationMeta {
@@ -364,6 +364,31 @@ export interface AiConversationMeta {
   sceneReused?: boolean
 }
 
+export interface AiModelUsage {
+  responseId?: string
+  model?: string
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+}
+
+export interface AiRetrievedDocument {
+  id?: string
+  title?: string
+  score?: number
+  snippet?: string
+}
+
+export interface AiRetrievalMeta {
+  retrievalApplied?: boolean
+  knowledgeBase?: string
+  filterExpression?: string
+  topK?: number
+  similarityThreshold?: number
+  retrievedCount?: number
+  documents?: AiRetrievedDocument[]
+}
+
 export interface AiChatResponse {
   sessionId: string
   content: string
@@ -371,8 +396,18 @@ export interface AiChatResponse {
   grounded?: boolean
   nextAction?: string
   answerType?: string
+  toolStatus?: string
   card?: AiDisplayCard | null
+  usage?: AiModelUsage | null
   conversation?: AiConversationMeta | null
+  retrieval?: AiRetrievalMeta | null
+}
+
+export interface AiChatStreamChunk {
+  sessionId: string
+  scene?: string
+  content: string
+  done: boolean
 }
 
 export interface AiConversationMessage {

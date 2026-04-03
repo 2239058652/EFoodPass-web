@@ -33,7 +33,8 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'orders', name: 'AppOrders', component: () => import('@/views/app/orders/index.vue'), meta: { title: '我的订单' } },
       { path: 'orders/:id', name: 'AppOrderDetail', component: () => import('@/views/app/orders/detail.vue'), meta: { title: '订单详情' } },
-      { path: 'order/create', name: 'AppOrderCreate', component: () => import('@/views/app/order/create.vue'), meta: { title: '创建订单' } },
+      { path: 'order/create', name: 'AppOrderCreate', component: () => import('@/views/app/order/create.vue'), meta: { title: '选菜下单' } },
+      { path: 'cart', name: 'AppCart', component: () => import('@/views/app/cart/index.vue'), meta: { title: '购物车' } },
       { path: 'ai/chat', name: 'AppAiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 助手' } }
     ]
   },

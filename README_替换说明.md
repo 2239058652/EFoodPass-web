@@ -1,37 +1,41 @@
-EFoodPass-web AI patch（本次对齐后端最新 Spring AI 代码）
+# EFoodPass-web 购物车补丁说明
 
-这次补齐的重点：
-1. AI 聊天页继续对齐最新主分支：
-   - 标准回复
-   - 流式回复（/ai/chat/stream）
-   - 会话列表 / 历史恢复 / 分页加载更早消息
-   - 重命名 / 删除会话
-   - usage / retrieval / 结构化 card 展示
-2. 新增系统知识库索引管理：
-   - GET /ai/knowledge/system/status
-   - POST /ai/knowledge/system/rebuild
-   - 新增管理端页面：/admin/ai/knowledge
+这次补丁是基于你当前前端主分支结构补的“前端本地购物车”。
 
-需要覆盖到你本地项目中的文件：
-- src/types/ai.ts
-- src/api/ai.ts
-- src/router/index.ts
-- src/layout/AppLayout.vue
-- src/layout/AppUserLayout.vue
-- src/views/dashboard/index.vue
-- src/views/ai/chat/index.vue
-- src/views/ai/knowledge/index.vue
+## 为什么是前端本地购物车
+当前后端没有专门的购物车接口，所以这次实现方式是：
 
-使用步骤：
-1. 先备份你本地 EFoodPass-web
-2. 解压本 zip
-3. 按目录覆盖到你的本地前端项目
-4. 执行 pnpm install 或 npm install
-5. 启动项目，登录后检查：
-   - /admin/ai/chat
-   - /admin/ai/knowledge
-   - /app/ai/chat
+1. 在“选菜下单”页读取菜品
+2. 加入本地购物车（localStorage）
+3. 在“购物车”页统一调整数量、填写备注
+4. 最终提交到现有 `POST /app/order`
 
-说明：
-- 当前后端知识库控制器没有单独声明权限注解；全局安全链路下它仍需要登录。
-- 前端把知识库入口放在管理端工作台中，避免普通用户区域出现运维类入口。
+这样你不需要改后端就能直接跑起来。
+
+## 本次新增/修改文件
+
+- `src/stores/cart.ts` 新增购物车 store
+- `src/views/app/cart/index.vue` 新增购物车页
+- `src/views/app/order/create.vue` 改为选菜 + 加入购物车
+- `src/layout/AppUserLayout.vue` 增加购物车菜单
+- `src/router/index.ts` 增加 `/app/cart` 路由
+
+## 使用方式
+
+1. 先备份你本地 `EFoodPass-web`
+2. 解压补丁 zip
+3. 按目录覆盖到你的项目里
+4. 运行依赖安装
+   - `pnpm install`
+   - 或 `npm install`
+5. 启动项目
+
+## 入口
+
+- 用户端选菜页：`/app/order/create`
+- 购物车页：`/app/cart`
+
+## 注意
+
+如果普通用户不能访问 `/food/item/list`，那“选菜下单”页依然会拿不到菜品。
+这个问题不是购物车逻辑本身的问题，而是后端是否开放了用户端菜品列表能力。

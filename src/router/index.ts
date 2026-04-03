@@ -21,7 +21,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'food/orders', name: 'FoodOrder', component: () => import('@/views/food/order/index.vue'), meta: { title: '订单管理', permission: 'food:order:list' } },
       { path: 'food/order-stat', name: 'FoodOrderStat', component: () => import('@/views/food/order-stat/index.vue'), meta: { title: '订单统计', permission: 'food:order:stat' } },
       { path: 'food/stock-logs', name: 'FoodStockLog', component: () => import('@/views/food/stock-log/index.vue'), meta: { title: '库存日志', permission: 'food:stock-log:list' } },
-      { path: 'ai/chat', name: 'AdminAiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 助手' } }
+      { path: 'ai/chat', name: 'AdminAiChat', component: () => import('@/views/ai/chat/index.vue'), meta: { title: 'AI 助手' } },
+      { path: 'ai/knowledge', name: 'AdminAiKnowledge', component: () => import('@/views/ai/knowledge/index.vue'), meta: { title: '知识库索引' } }
     ]
   },
   {

@@ -1,13 +1,14 @@
 import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
+import type { ApiResponse } from '@/types'
 import type {
-  ApiResponse,
   AiChatRequest,
   AiChatResponse,
   AiChatStreamChunk,
   AiConversationSessionDetail,
-  AiConversationSessionSummary
-} from '@/types'
+  AiConversationSessionSummary,
+  SystemKnowledgeIndexStatusResponse
+} from '@/types/ai'
 
 export function sendAiChat(data: AiChatRequest) {
   return request<ApiResponse<AiChatResponse>>({
@@ -45,6 +46,20 @@ export function clearAiSession(sessionId: string) {
   return request<ApiResponse<void>>({
     url: `/ai/chat/session/${encodeURIComponent(sessionId)}`,
     method: 'delete'
+  })
+}
+
+export function getSystemKnowledgeStatus() {
+  return request<ApiResponse<SystemKnowledgeIndexStatusResponse>>({
+    url: '/ai/knowledge/system/status',
+    method: 'get'
+  })
+}
+
+export function rebuildSystemKnowledge() {
+  return request<ApiResponse<SystemKnowledgeIndexStatusResponse>>({
+    url: '/ai/knowledge/system/rebuild',
+    method: 'post'
   })
 }
 

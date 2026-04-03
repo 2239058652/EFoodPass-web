@@ -268,7 +268,7 @@ import type {
   AiConversationMessage,
   AiConversationSessionDetail,
   AiConversationSessionSummary
-} from '@/types'
+} from '@/types/ai'
 
 interface AiLastStreamInfo {
   sessionId?: string

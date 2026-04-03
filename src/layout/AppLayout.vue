@@ -34,10 +34,14 @@
               </template>
               <el-menu-item v-for="item in foodMenus" :key="item.path" :index="item.path">{{ item.title }}</el-menu-item>
             </el-sub-menu>
-            <el-menu-item index="/admin/ai/chat">
-              <el-icon><ChatDotRound /></el-icon>
-              <span>AI 助手</span>
-            </el-menu-item>
+            <el-sub-menu index="/admin/ai">
+              <template #title>
+                <el-icon><ChatDotRound /></el-icon>
+                <span>AI 工作台</span>
+              </template>
+              <el-menu-item index="/admin/ai/chat">AI 助手</el-menu-item>
+              <el-menu-item index="/admin/ai/knowledge">知识库索引</el-menu-item>
+            </el-sub-menu>
             <el-sub-menu index="/app/link">
               <template #title>
                 <el-icon><Tickets /></el-icon>
@@ -52,8 +56,8 @@
 
         <div class="sidebar-footer">
           <div class="footer-card">
-            <div class="footer-card__title">AI 会话已接入</div>
-            <div class="footer-card__desc">支持多轮对话、历史会话、重命名、历史恢复和结构化卡片展示。</div>
+            <div class="footer-card__title">AI 功能已扩展</div>
+            <div class="footer-card__desc">支持标准 / 流式会话、历史恢复、RAG 检索信息展示，以及系统知识库索引状态查看与重建。</div>
           </div>
         </div>
       </div>
@@ -63,10 +67,11 @@
       <header class="topbar">
         <div>
           <div class="topbar-title">{{ currentTitle }}</div>
-          <div class="topbar-subtitle">管理功能与 AI 助手均按后端 main 分支接口对齐。</div>
+          <div class="topbar-subtitle">管理功能与 Spring AI 模块均按后端当前 main 分支接口对齐。</div>
         </div>
         <div class="header-right">
           <el-button text bg @click="router.push('/admin/ai/chat')">AI 助手</el-button>
+          <el-button text bg @click="router.push('/admin/ai/knowledge')">知识索引</el-button>
           <el-button text bg @click="router.push('/app/orders')">切到用户端</el-button>
           <div class="profile-pill">
             <div class="profile-pill__avatar">{{ displayInitial }}</div>

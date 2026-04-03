@@ -1,11 +1,12 @@
 <template>
   <el-card class="page-card page-hero gradient-blue" shadow="never">
     <div class="page-hero__title">EFoodPass 仪表盘</div>
-    <div class="page-hero__desc">当前前端严格按后端源码生成，包含管理端、用户端订单页，以及最新接入的 AI 助手多轮会话能力。登录流程基于 <code>POST /auth/login</code> 与 <code>GET /auth/me</code>，权限显隐基于 permissionCodes。</div>
+    <div class="page-hero__desc">当前前端严格按后端源码生成，包含管理端、用户端订单页，以及最新接入的 AI 助手多轮会话、流式回复和知识库索引管理能力。登录流程基于 <code>POST /auth/login</code> 与 <code>GET /auth/me</code>，权限显隐基于 permissionCodes。</div>
     <div class="page-hero__meta">
       <div class="hero-badge">管理端</div>
       <div class="hero-badge">用户端订单页</div>
       <div class="hero-badge">AI 助手</div>
+      <div class="hero-badge">知识库索引</div>
       <div class="hero-badge">Result / PageResult</div>
     </div>
   </el-card>
@@ -40,7 +41,8 @@
         系统管理：用户、角色、权限。<br />
         业务管理：分类、菜品、订单、订单统计、库存日志。<br />
         用户端：我的订单、订单详情、创建订单。<br />
-        AI 助手：多轮对话、会话列表、历史恢复、重命名、删除会话、结构化卡片展示。
+        AI 助手：多轮对话、会话列表、历史恢复、重命名、删除会话、流式回复、结构化卡片展示。<br />
+        AI 知识库：系统知识索引状态查看与重建。
       </div>
       <div class="chip-list">
         <RouterLink v-for="link in quickLinks" :key="link.path" :to="link.path" class="soft-chip">{{ link.label }}</RouterLink>
@@ -52,7 +54,7 @@
       <div class="chip-list" style="margin-top: 14px">
         <div v-for="code in authStore.userInfo?.roleCodes || []" :key="code" class="soft-chip warm-chip">{{ code }}</div>
       </div>
-      <div class="panel-desc" style="margin-top: 18px">如果当前用户拥有 <code>food:order:stat</code> 权限，仪表盘会直接读取订单统计接口。AI 页面走登录鉴权，可根据当前用户权限决定可查看的订单范围。</div>
+      <div class="panel-desc" style="margin-top: 18px">如果当前用户拥有 <code>food:order:stat</code> 权限，仪表盘会直接读取订单统计接口。AI 页面走登录鉴权，可根据当前用户权限决定可查看的订单范围。当前后端知识库接口没有单独声明权限码，前端把它放在管理端入口中便于统一管理。</div>
     </el-card>
   </div>
 </template>
@@ -78,6 +80,7 @@ const quickLinks = computed(() => {
     { path: '/admin/food/order-stat', label: '订单统计', perm: 'food:order:stat' },
     { path: '/admin/food/stock-logs', label: '库存日志', perm: 'food:stock-log:list' },
     { path: '/admin/ai/chat', label: '管理端 AI 助手' },
+    { path: '/admin/ai/knowledge', label: '知识库索引' },
     { path: '/app/orders', label: '我的订单' },
     { path: '/app/order/create', label: '创建订单' },
     { path: '/app/ai/chat', label: '用户端 AI 助手' }
